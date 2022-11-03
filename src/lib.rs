@@ -16,7 +16,6 @@ pub struct ImageGrid {
     pub max_line_height: f64,
     pub min_item_width: f64,
     pub gap: f64,
-    pub desired_height: f64,
     pub items: Vec<f64>,
 }
 
@@ -28,8 +27,13 @@ impl ImageGrid {
         max_line_height: f64,
         min_item_width: f64,
         gap: f64,
-        desired_height: f64,
     ) -> Self {
+        if min_line_height > max_line_height {
+            panic!("Min line height may not be more than max line height");
+        } else if available_width < min_item_width {
+            panic!("Full width is less than min item's width allowed");
+        }
+
         ImageGrid {
             items,
             available_width,
@@ -37,7 +41,6 @@ impl ImageGrid {
             max_line_height,
             min_item_width,
             gap,
-            desired_height,
         }
     }
 
@@ -62,7 +65,13 @@ impl ImageGrid {
             return Err(ResizeError::MinItemWidthOverload);
         }
 
-        Ok(self.calculate_all_width_by_height(items, desired_height))
+        let width = self.calculate_all_width_by_height(items, desired_height);
+
+        if width > self.available_width {
+            return Err(ResizeError::CanNotFitItems);
+        }
+
+        Ok(width)
     }
 
     /// In case if it's OK will return space left
@@ -73,7 +82,7 @@ impl ImageGrid {
             return Err(ResizeError::BiggerThanMaxHeight);
         }
 
-        let all_width = self.calculate_all_width_by_height_secure(items, height);
+        let all_width = self.calculate_all_width_by_height_secure(items.clone(), height);
 
         if let Ok(all_width) = all_width {
             if all_width <= self.available_width {
@@ -82,6 +91,26 @@ impl ImageGrid {
         }
 
         Err(ResizeError::CanNotFitItems)
+    }
+
+    fn items_may_be_fitted(&self, items: Vec<f64>) -> Result<bool, ResizeError> {
+        let max_height_fit =
+            self.calculate_all_width_by_height_secure(items.clone(), self.max_line_height);
+        let min_height_fit =
+            self.calculate_all_width_by_height_secure(items.clone(), self.min_line_height);
+
+        eprintln!(
+            "{:?} = max: {:?}, min: {:?}",
+            items,
+            max_height_fit.is_ok(),
+            min_height_fit.is_ok()
+        );
+
+        if max_height_fit.is_ok() || min_height_fit.is_ok() {
+            Ok(true)
+        } else {
+            Err(ResizeError::CanNotFitItems)
+        }
     }
 
     fn get_js_array_from_values(&self, first: u32, last: f64) -> js_sys::Array {
@@ -101,10 +130,16 @@ impl ImageGrid {
         let mut copy = items;
         let mut not_fitted: Vec<f64> = Vec::new();
 
-        while self
-            .may_fit_in_width((*copy).to_vec(), self.desired_height)
-            .is_err()
-        {
+        while self.items_may_be_fitted((*copy).to_vec()).is_err() {
+            if copy.is_empty() {
+                break;
+            }
+
+            if copy.len() == 1 {
+                return vec![(1, self.min_line_height)];
+            }
+            eprintln!("copy: {:?}", copy);
+
             not_fitted.insert(0, copy.pop().unwrap());
         }
 
@@ -116,12 +151,18 @@ impl ImageGrid {
         eprintln!("getting next...");
 
         let best_size_for_suitable = self.get_best_size(copy.clone());
-        let items_success: (f64, f64) = match best_size_for_suitable {
-            Err(_) => {
+        let best_height: f64 = match best_size_for_suitable {
+            Err(e) => {
+                eprintln!("{:?}", e);
+                eprintln!("{:?}", copy);
                 copy = copy.clone();
 
                 if copy.is_empty() {
                     return vec![(0, 0.0)];
+                }
+
+                if copy.len() == 1 {
+                    return vec![(1, self.min_line_height)];
                 }
 
                 return self.get_row_from_items(copy);
@@ -130,33 +171,33 @@ impl ImageGrid {
         };
         eprintln!("best size: {:?}", best_size_for_suitable);
 
-        let mut result = vec![(copy.len() as u32, items_success.0)];
+        let mut result = vec![(copy.len() as u32, best_height)];
         eprintln!("result: {:?}", result);
+        eprintln!("not_fitted: {:?}", not_fitted.clone());
 
         if !not_fitted.is_empty() {
-            let best_size_for_unfitted = self
-                .get_best_size(not_fitted.clone())
-                .map_err(|_e| vec![0.0, 0.0])
-                .unwrap();
-
-            result.push((not_fitted.len() as u32, best_size_for_unfitted.0));
+            let best_size_for_unfitted = self.get_best_size(not_fitted.clone());
+            if let Ok(bs) = best_size_for_unfitted {
+                result.push((not_fitted.len() as u32, bs));
+            } else {
+                let rest_filtered = &mut self.get_row_from_items(not_fitted);
+                result.append(rest_filtered);
+                return result;
+            }
         }
 
         result
     }
 
     fn get_average_width_by_px(&self, items: Vec<f64>) -> f64 {
-        let first = self.calculate_all_width_by_height(items.clone(), 300.0);
-        let second = self.calculate_all_width_by_height(items, 301.0);
+        let first = self.calculate_all_width_by_height(items.clone(), 0.0);
+        let second = self.calculate_all_width_by_height(items, 1.0);
 
         second - first
     }
 
-    /// Returns tuple with:
-    /// nb items
-    /// height
-    /// best space left (to fit the line)
-    fn get_best_size(&self, items: Vec<f64>) -> Result<(f64, f64), ResizeError> {
+    /// Returns best height for items:
+    fn get_best_size(&self, items: Vec<f64>) -> Result<f64, ResizeError> {
         if items.is_empty() {
             return Err(ResizeError::Empty);
         }
@@ -166,6 +207,10 @@ impl ImageGrid {
         let avg_by_height = self.get_average_width_by_px(items.clone());
         // Will always be slightly bigger
         let mut height = (self.available_width / avg_by_height).floor();
+        eprintln!(
+            "avg: {}; height: {};a_w: {};",
+            avg_by_height, height, self.available_width
+        );
 
         if height > self.max_line_height {
             height = self.max_line_height;
@@ -190,20 +235,19 @@ impl ImageGrid {
         if !fitted_already {
             Err(ResizeError::CanNotFitItems)
         } else {
-            Ok(height_and_remaining_space)
+            Ok(height_and_remaining_space.0)
         }
     }
 }
 
 #[wasm_bindgen]
 pub fn get_optimal_grid(
+    items: Vec<f64>,
     available_width: f64,
     min_line_height: f64,
     max_line_height: f64,
     min_item_width: f64,
     gap: f64,
-    desired_height: f64,
-    items: Vec<f64>,
 ) -> js_sys::Array {
     let inst = ImageGrid::new(
         items,
@@ -212,7 +256,6 @@ pub fn get_optimal_grid(
         max_line_height,
         min_item_width,
         gap,
-        desired_height,
     );
 
     let result_array = js_sys::Array::new();
@@ -246,12 +289,11 @@ mod tests {
             min_line_height: 200.0,
             max_line_height: 641.0,
             gap: 4.0,
-            desired_height: 320.0,
             min_item_width: 175.0,
         };
         let result = inst.get_best_size(inst.items.clone());
 
-        assert_eq!(result, Ok((330.0, 1.6903080301501632)));
+        assert_eq!(result, Ok(330.0));
     }
 
     #[test]
@@ -268,9 +310,8 @@ mod tests {
             items,
             available_width: 1526.0,
             gap: 4.0,
-            desired_height: 320.0,
             min_line_height: 200.0,
-            max_line_height: 600.0,
+            max_line_height: 444.0,
             min_item_width: 175.0,
         };
         assert_eq!(
