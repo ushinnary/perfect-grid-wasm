@@ -28,11 +28,8 @@ impl ImageGrid {
         min_item_width: f64,
         gap: f64,
     ) -> Self {
-        if min_line_height > max_line_height {
-            panic!("Min line height may not be more than max line height");
-        } else if available_width < min_item_width {
-            panic!("Full width is less than min item's width allowed");
-        }
+        assert!(min_line_height > max_line_height);
+        assert!(available_width < min_item_width);
 
         ImageGrid {
             items,
@@ -82,7 +79,7 @@ impl ImageGrid {
             return Err(ResizeError::BiggerThanMaxHeight);
         }
 
-        let all_width = self.calculate_all_width_by_height_secure(items.clone(), height);
+        let all_width = self.calculate_all_width_by_height_secure(items, height);
 
         if let Ok(all_width) = all_width {
             if all_width <= self.available_width {
@@ -96,15 +93,7 @@ impl ImageGrid {
     fn items_may_be_fitted(&self, items: Vec<f64>) -> Result<bool, ResizeError> {
         let max_height_fit =
             self.calculate_all_width_by_height_secure(items.clone(), self.max_line_height);
-        let min_height_fit =
-            self.calculate_all_width_by_height_secure(items.clone(), self.min_line_height);
-
-        eprintln!(
-            "{:?} = max: {:?}, min: {:?}",
-            items,
-            max_height_fit.is_ok(),
-            min_height_fit.is_ok()
-        );
+        let min_height_fit = self.calculate_all_width_by_height_secure(items, self.min_line_height);
 
         if max_height_fit.is_ok() || min_height_fit.is_ok() {
             Ok(true)
@@ -138,25 +127,17 @@ impl ImageGrid {
             if copy.len() == 1 {
                 return vec![(1, self.min_line_height)];
             }
-            eprintln!("copy: {:?}", copy);
 
             not_fitted.insert(0, copy.pop().unwrap());
         }
 
-        eprintln!("not fitted: {:?}", not_fitted);
-
         if copy.is_empty() {
             return vec![(0, 0.0)];
         }
-        eprintln!("getting next...");
 
         let best_size_for_suitable = self.get_best_size(copy.clone());
         let best_height: f64 = match best_size_for_suitable {
-            Err(e) => {
-                eprintln!("{:?}", e);
-                eprintln!("{:?}", copy);
-                copy = copy.clone();
-
+            Err(_) => {
                 if copy.is_empty() {
                     return vec![(0, 0.0)];
                 }
@@ -169,11 +150,8 @@ impl ImageGrid {
             }
             Ok(res) => res,
         };
-        eprintln!("best size: {:?}", best_size_for_suitable);
 
         let mut result = vec![(copy.len() as u32, best_height)];
-        eprintln!("result: {:?}", result);
-        eprintln!("not_fitted: {:?}", not_fitted.clone());
 
         if !not_fitted.is_empty() {
             let best_size_for_unfitted = self.get_best_size(not_fitted.clone());
@@ -207,10 +185,6 @@ impl ImageGrid {
         let avg_by_height = self.get_average_width_by_px(items.clone());
         // Will always be slightly bigger
         let mut height = (self.available_width / avg_by_height).floor();
-        eprintln!(
-            "avg: {}; height: {};a_w: {};",
-            avg_by_height, height, self.available_width
-        );
 
         if height > self.max_line_height {
             height = self.max_line_height;
@@ -226,17 +200,17 @@ impl ImageGrid {
                 height_and_remaining_space.1 = res;
                 fitted_already = true;
             } else if fitted_already {
-                break;
+                return Ok(height_and_remaining_space.0);
             }
 
             height -= 1.0;
         }
 
         if !fitted_already {
-            Err(ResizeError::CanNotFitItems)
-        } else {
-            Ok(height_and_remaining_space.0)
+            return Err(ResizeError::CanNotFitItems);
         }
+
+        Ok(height_and_remaining_space.0)
     }
 }
 
