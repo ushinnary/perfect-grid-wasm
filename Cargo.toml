@@ -1,6 +1,6 @@
 [package]
-name = "image-grid-aligner"
-version = "0.1.0"
+name = "perfect-grid"
+version = "0.1.1"
 authors = ["ushinnary <kartushin.alexander97@gmail.com>"]
 edition = "2021"
 
