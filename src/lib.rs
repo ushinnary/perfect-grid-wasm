@@ -105,14 +105,6 @@ impl ImageGrid {
         }
     }
 
-    fn get_js_array_from_values(&self, first: u32, last: f64) -> js_sys::Array {
-        let arr = js_sys::Array::new();
-        arr.set(0, JsValue::from(first));
-        arr.set(1, JsValue::from_f64(last));
-
-        arr
-    }
-
     /// Returns vector of tuples with number of items to take and height for them
     pub fn get_row_from_items(&self, items: &mut Vec<f64>) -> Vec<(u32, f64)> {
         if items.is_empty() {
@@ -237,12 +229,15 @@ pub fn get_optimal_grid(
     let result_array = js_sys::Array::new();
 
     let res = inst.get_row_from_items(&mut inst.items.clone());
-    for (i, item) in res.iter().enumerate() {
-        result_array.set(
-            i as u32,
-            JsValue::from(inst.get_js_array_from_values(item.0, item.1)),
-        );
+    let mut index = 0;
+
+    for (_i, item) in res.iter().enumerate() {
+        for _j in 0..item.0 {
+            result_array.set(index, JsValue::from(item.1));
+            index += 1;
+        }
     }
+
     result_array
 }
 
