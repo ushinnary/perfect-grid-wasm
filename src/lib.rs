@@ -5,7 +5,7 @@ use wasm_bindgen::prelude::*;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-#[wasm_bindgen]
+// Custom error for better handling
 #[derive(Debug, PartialEq, Eq)]
 pub enum ResizeError {
     MinItemWidthOverload,
@@ -15,6 +15,7 @@ pub enum ResizeError {
     Empty,
 }
 
+// Main struct with essentials props
 pub struct ImageGrid {
     pub items: Vec<f64>,
     pub available_width: f64,
@@ -46,6 +47,7 @@ impl ImageGrid {
         }
     }
 
+    // Getting sum of all elements after multiply
     fn calculate_all_width_by_height(&self, items: &[f64], desired_height: f64) -> f64 {
         let sum: f64 = items
             .iter()
@@ -54,6 +56,7 @@ impl ImageGrid {
         sum - self.gap
     }
 
+    // Returns width if all other checks passed
     fn calculate_all_width_by_height_secure(
         &self,
         items: &[f64],
@@ -185,7 +188,7 @@ impl ImageGrid {
         }
 
         while height >= self.min_line_height && height <= self.max_line_height {
-            if let Ok(res) = self.may_fit_in_width(items.clone(), height) {
+            if let Ok(res) = self.may_fit_in_width(items.to_vec(), height) {
                 if fitted_already && res > height_and_remaining_space.1 {
                     break;
                 }
