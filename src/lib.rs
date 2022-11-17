@@ -1,10 +1,6 @@
 mod utils;
 use wasm_bindgen::prelude::*;
 
-#[cfg(feature = "wee_alloc")]
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
 // Custom error for better handling
 #[derive(Debug, PartialEq, Eq)]
 pub enum ResizeError {
