@@ -1,7 +1,11 @@
 [package]
 name = "perfect-grid"
-version = "0.1.1"
+version = "0.2.1"
 authors = ["ushinnary <kartushin.alexander97@gmail.com>"]
+description = "WASM Package that calculates images dimensions to fill the grid line by saving aspect ratio of all images."
+repository = "https://github.com/ushinnary/perfect-grid-wasm"
+license = "MIT"
+license-file = "LICENSE.txt"
 edition = "2021"
 
 [lib]
@@ -19,13 +23,6 @@ js-sys = "0.3.60"
 # all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
 # code size when deploying.
 console_error_panic_hook = { version = "0.1.6", optional = true }
-
-# `wee_alloc` is a tiny allocator for wasm that is only ~1K in code size
-# compared to the default allocator's ~10K. It is slower than the default
-# allocator, however.
-#
-# Unfortunately, `wee_alloc` requires nightly Rust when targeting wasm for now.
-wee_alloc = { version = "0.4.5", optional = true }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.13"
