@@ -99,7 +99,6 @@ impl ImageGrid {
 
     /// Check if we may fit all items with max or min line height
     fn items_may_be_fitted(&self, ratios: &[f64]) -> bool {
-        dbg!(&ratios, self.get_optimal_height(ratios));
         [
             self.min_line_height,
             self.get_optimal_height(ratios),
@@ -176,11 +175,9 @@ impl ImageGrid {
             height -= 1.0;
         }
 
-        if fitted_already {
-            Ok(height_and_remaining_space.0)
-        } else {
-            Err(ResizeError::CanNotFitItems)
-        }
+        fitted_already
+            .then_some(height_and_remaining_space.0)
+            .ok_or(ResizeError::CanNotFitItems)
     }
 }
 
