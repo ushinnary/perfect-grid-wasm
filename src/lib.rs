@@ -75,52 +75,29 @@ impl ImageGrid {
         }
     }
 
-    /// In case if it's OK will return space left
-    fn may_fit_in_width(&self, ratios: &[f64], height: f64) -> Result<f64, ResizeError> {
-        if height < self.min_line_height {
-            return Err(ResizeError::LowerThanMinHeight);
-        } else if height > self.max_line_height {
-            return Err(ResizeError::BiggerThanMaxHeight);
-        }
-
-        let all_width = self.calculate_all_width_by_height_secure(ratios, height);
-
-        all_width.map_or(Err(ResizeError::CanNotFitItems), |all_width| {
-            if all_width <= self.available_width {
-                Ok(self.available_width - all_width)
-            } else {
-                Err(ResizeError::CanNotFitItems)
-            }
-        })
-    }
-
     /// Check if we may fit all items with max or min line height
-    fn items_may_be_fitted(&self, ratios: &[f64]) -> bool {
-        self.calculate_all_width_by_height_secure(ratios, self.get_optimal_height(ratios))
+    fn items_may_be_fitted(&self, ratios: &[f64], height: f64) -> bool {
+        self.calculate_all_width_by_height_secure(ratios, height)
             .is_ok()
     }
 
     /// Returns vector of tuples with number of items to take and height for them
     pub fn get_row_from_items(&self, ratios: &mut Vec<f64>) -> Vec<(u32, f64)> {
         let mut not_fitted: Vec<f64> = Vec::new();
+        let mut height_for_ratios = self.get_optimal_height(ratios);
 
-        while !self.items_may_be_fitted(ratios) {
-            not_fitted.insert(0, ratios.pop().unwrap());
-        }
-
-        if ratios.is_empty() {
-            return vec![(0, 0.0)];
-        }
-
-        let best_size_for_suitable = self.get_best_size(ratios);
-        let best_height: f64 = match best_size_for_suitable {
-            Err(_) => {
-                return vec![(0, 0.0)];
+        for ratio_index in 0..ratios.len() {
+            let items = &ratios[0..=ratio_index];
+            let new_height = self.get_optimal_height(items);
+            if !self.items_may_be_fitted(items, new_height) {
+                not_fitted = ratios.drain(ratio_index..).collect();
+                break;
             }
-            Ok(res) => res,
-        };
 
-        let mut result = vec![(ratios.len() as u32, best_height)];
+            height_for_ratios = new_height.min(self.max_line_height);
+        }
+
+        let mut result = vec![(ratios.len() as u32, height_for_ratios)];
 
         if !not_fitted.is_empty() {
             let rest_filtered = &mut self.get_row_from_items(&mut not_fitted);
@@ -130,23 +107,10 @@ impl ImageGrid {
         result
     }
 
-    fn get_optimal_height(&self, ratios: &[f64]) -> f64 {
+    pub fn get_optimal_height(&self, ratios: &[f64]) -> f64 {
         let gaps_width = ratios.len().saturating_sub(1) as f64 * self.gap;
         let total_width = self.available_width - gaps_width;
         (total_width / ratios.iter().sum::<f64>()).floor()
-    }
-
-    /// Returns best height for items:
-    pub fn get_best_size(&self, ratios: &[f64]) -> Result<f64, ResizeError> {
-        if ratios.is_empty() {
-            return Err(ResizeError::Empty);
-        }
-
-        let height = self.get_optimal_height(ratios).min(self.max_line_height);
-
-        self.may_fit_in_width(ratios, height)
-            .map(|_| height)
-            .map_err(|_| ResizeError::CanNotFitItems)
     }
 }
 

@@ -17,9 +17,9 @@ mod tests {
             gap: 4.0,
             min_item_width: 175.0,
         };
-        let result = inst.get_best_size(&ratios);
+        let result = inst.get_optimal_height(&ratios);
 
-        assert_eq!(result, Ok(330.0));
+        assert_eq!(result, 330.0);
     }
 
     #[test]
