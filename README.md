@@ -18,6 +18,35 @@ If you're using Vite, you'll need to install the `vite-plugin-wasm`
 
 ### Usage
 
+## IMPORTANT
+
+To make it work correctly with vite, make sure you have this workaround :
+
+```js
+import { defineConfig } from "vite";
+import vue from "@vitejs/plugin-vue";
+import wasm from "vite-plugin-wasm";
+
+const wasmContentTypePlugin = {
+  name: "wasm-content-type-plugin",
+  configureServer(server) {
+    server.middlewares.use((req, res, next) => {
+      if (req.url.endsWith(".wasm")) {
+        res.setHeader("Content-Type", "application/wasm");
+      }
+      next();
+    });
+  },
+};
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [vue(), wasm(), wasmContentTypePlugin],
+  optimizeDeps: {
+    exclude: ["perfect-grid"],
+  },
+});
+```
+
 To use Perfect Grid, you'll need to provide the following information:
 
 - An array of aspect ratios for your images/videos/other media (in Float64Array format) `Float64Array([...items])`
